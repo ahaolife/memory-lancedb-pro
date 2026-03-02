@@ -28,6 +28,18 @@
 
 ---
 
+## ⭐ Star 趋势
+
+<a href="https://star-history.com/#win4r/memory-lancedb-pro&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=win4r/memory-lancedb-pro&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=win4r/memory-lancedb-pro&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=win4r/memory-lancedb-pro&type=Date" />
+  </picture>
+</a>
+
+---
+
 ## 为什么需要这个插件？
 
 OpenClaw 内置的 `memory-lancedb` 插件仅提供基本的向量搜索。**memory-lancedb-pro** 在此基础上进行了全面升级：
