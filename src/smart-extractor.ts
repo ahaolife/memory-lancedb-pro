@@ -341,6 +341,7 @@ export class SmartExtractor {
             dedupResult.matchId,
             scopeFilter,
             targetScope,
+            dedupResult.contextLabel,
           );
           stats.merged++;
         } else {
@@ -540,6 +541,7 @@ export class SmartExtractor {
     matchId: string,
     scopeFilter: string[],
     targetScope: string,
+    contextLabel?: string,
   ): Promise<void> {
     let existingAbstract = "";
     let existingOverview = "";
@@ -619,8 +621,22 @@ export class SmartExtractor {
       scopeFilter,
     );
 
+    // Update support stats on the merged memory
+    try {
+      const updatedEntry = await this.store.getById(matchId, scopeFilter);
+      if (updatedEntry) {
+        const meta = parseSmartMetadata(updatedEntry.metadata, updatedEntry);
+        const supportInfo = parseSupportInfo(meta.support_info);
+        updateSupportStats(supportInfo, contextLabel, "support");
+        const finalMetadata = stringifySmartMetadata({ ...meta, support_info: supportInfo });
+        await this.store.update(matchId, { metadata: finalMetadata }, scopeFilter);
+      }
+    } catch {
+      // Non-critical: merge succeeded, support stats update is best-effort
+    }
+
     this.log(
-      `memory-pro: smart-extractor: merged [${candidate.category}] into ${matchId.slice(0, 8)}`,
+      `memory-pro: smart-extractor: merged [${candidate.category}]${contextLabel ? ` [${contextLabel}]` : ""} into ${matchId.slice(0, 8)}`,
     );
   }
 

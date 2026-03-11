@@ -171,10 +171,28 @@ export function buildSmartMetadata(
   };
 }
 
+// Metadata array size caps — prevent unbounded JSON growth
+const MAX_SOURCES = 20;
+const MAX_HISTORY = 50;
+const MAX_RELATIONS = 16;
+
 export function stringifySmartMetadata(
   metadata: SmartMemoryMetadata | Record<string, unknown>,
 ): string {
-  return JSON.stringify(metadata);
+  const capped = { ...metadata } as Record<string, unknown>;
+
+  // Cap array fields to prevent metadata bloat
+  if (Array.isArray(capped.sources) && capped.sources.length > MAX_SOURCES) {
+    capped.sources = capped.sources.slice(-MAX_SOURCES); // keep most recent
+  }
+  if (Array.isArray(capped.history) && capped.history.length > MAX_HISTORY) {
+    capped.history = capped.history.slice(-MAX_HISTORY);
+  }
+  if (Array.isArray(capped.relations) && capped.relations.length > MAX_RELATIONS) {
+    capped.relations = capped.relations.slice(0, MAX_RELATIONS);
+  }
+
+  return JSON.stringify(capped);
 }
 
 export function toLifecycleMemory(
