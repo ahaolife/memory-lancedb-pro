@@ -279,6 +279,30 @@ const MAX_SOURCES = 20;
 const MAX_HISTORY = 50;
 const MAX_RELATIONS = 16;
 
+/**
+ * Append a relation to an existing relations array, deduplicating by type+targetId.
+ */
+export function appendRelation(
+  existing: unknown,
+  relation: MemoryRelation,
+): MemoryRelation[] {
+  const rows = Array.isArray(existing)
+    ? existing.filter(
+      (item): item is MemoryRelation =>
+        !!item &&
+        typeof item === "object" &&
+        typeof (item as { type?: unknown }).type === "string" &&
+        typeof (item as { targetId?: unknown }).targetId === "string",
+    )
+    : [];
+
+  if (rows.some((item) => item.type === relation.type && item.targetId === relation.targetId)) {
+    return rows;
+  }
+
+  return [...rows, relation];
+}
+
 export function stringifySmartMetadata(
   metadata: SmartMemoryMetadata | Record<string, unknown>,
 ): string {

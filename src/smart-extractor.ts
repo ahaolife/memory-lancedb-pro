@@ -29,6 +29,7 @@ import {
 import { isNoise } from "./noise-filter.js";
 import type { NoisePrototypeBank } from "./noise-prototypes.js";
 import {
+  appendRelation,
   buildSmartMetadata,
   deriveFactKey,
   isMemoryActiveAt,
@@ -55,27 +56,6 @@ const VALID_DECISIONS = new Set<string>([
   "contradict",
   "supersede",
 ]);
-
-function appendRelation(
-  existing: unknown,
-  relation: MemoryRelation,
-): MemoryRelation[] {
-  const rows = Array.isArray(existing)
-    ? existing.filter(
-      (item): item is MemoryRelation =>
-        !!item &&
-        typeof item === "object" &&
-        typeof (item as { type?: unknown }).type === "string" &&
-        typeof (item as { targetId?: unknown }).targetId === "string",
-    )
-    : [];
-
-  if (rows.some((item) => item.type === relation.type && item.targetId === relation.targetId)) {
-    return rows;
-  }
-
-  return [...rows, relation];
-}
 
 // ============================================================================
 // Smart Extractor
