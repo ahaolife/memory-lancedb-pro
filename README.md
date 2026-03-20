@@ -13,7 +13,7 @@ A LanceDB-backed OpenClaw memory plugin that stores preferences, decisions, and 
 [![LanceDB](https://img.shields.io/badge/LanceDB-Vectorstore-orange)](https://lancedb.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**English** | [简体中文](README_CN.md)
+**English** | [简体中文](README_CN.md) | [日本語](README_JA.md)
 
 </div>
 
