@@ -133,6 +133,12 @@
         "default": 180,
         "description": "Maximum character budget per auto-injected memory summary."
       },
+      "recallMode": {
+        "type": "string",
+        "enum": ["full", "summary", "adaptive", "off"],
+        "default": "full",
+        "description": "Auto-recall depth mode. 'full': inject with configured per-item budget. 'summary': L0 abstracts only (compact). 'adaptive': analyze query intent to auto-select category and depth. 'off': disable auto-recall injection."
+      },
       "captureAssistant": {
         "type": "boolean"
       },
@@ -915,6 +921,11 @@
       "label": "Auto-Recall Per-Item Max Chars",
       "help": "Maximum characters per injected memory summary.",
       "advanced": true
+    },
+    "recallMode": {
+      "label": "Recall Mode",
+      "help": "Auto-recall depth: full (default), summary (L0 only), adaptive (intent-based category routing), off.",
+      "advanced": false
     },
     "captureAssistant": {
       "label": "Capture Assistant Messages",

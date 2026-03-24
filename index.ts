@@ -64,6 +64,7 @@ import {
   type AdmissionControlConfig,
   type AdmissionRejectionAuditEntry,
 } from "./src/admission-control.js";
+import { analyzeIntent, applyCategoryBoost } from "./src/intent-analyzer.js";
 
 // ============================================================================
 // Configuration & Types
@@ -90,6 +91,7 @@ interface PluginConfig {
   autoRecallMaxItems?: number;
   autoRecallMaxChars?: number;
   autoRecallPerItemMaxChars?: number;
+  recallMode?: "full" | "summary" | "adaptive" | "off";
   captureAssistant?: boolean;
   retrieval?: {
     mode?: "hybrid" | "vector";
@@ -2146,7 +2148,9 @@ const memoryLanceDBProPlugin = {
 
     // Auto-recall: inject relevant memories before agent starts
     // Default is OFF to prevent the model from accidentally echoing injected context.
-    if (config.autoRecall === true) {
+    // recallMode: "full" (default when autoRecall=true) | "summary" (L0 only) | "adaptive" (intent-based) | "off"
+    const recallMode = config.recallMode || "full";
+    if (config.autoRecall === true && recallMode !== "off") {
       // Cache the most recent raw user message per session so the
       // before_prompt_build gating can check the *user* text, not the full
       // assembled prompt (which includes system instructions and is too long
@@ -2210,6 +2214,14 @@ const memoryLanceDBProPlugin = {
           const autoRecallPerItemMaxChars = clampInt(config.autoRecallPerItemMaxChars ?? 180, 32, 1000);
           const retrieveLimit = clampInt(Math.max(autoRecallMaxItems * 2, autoRecallMaxItems), 1, 20);
 
+          // Adaptive intent analysis (zero-LLM-cost pattern matching)
+          const intent = recallMode === "adaptive" ? analyzeIntent(recallQuery) : undefined;
+          if (intent) {
+            api.logger.debug?.(
+              `memory-lancedb-pro: adaptive recall intent=${intent.label} depth=${intent.depth} confidence=${intent.confidence} categories=[${intent.categories.join(",")}]`,
+            );
+          }
+
           const results = filterUserMdExclusiveRecallResults(await retrieveWithRetry({
             query: recallQuery,
             limit: retrieveLimit,
@@ -2221,16 +2233,19 @@ const memoryLanceDBProPlugin = {
             return;
           }
 
+          // Apply intent-based category boost for adaptive mode
+          const rankedResults = intent ? applyCategoryBoost(results, intent) : results;
+
           // Filter out redundant memories based on session history
           const minRepeated = config.autoRecallMinRepeated ?? 8;
           let dedupFilteredCount = 0;
 
           // Only enable dedup logic when minRepeated > 0
-          let finalResults = results;
+          let finalResults = rankedResults;
 
           if (minRepeated > 0) {
             const sessionHistory = recallHistory.get(sessionId) || new Map<string, number>();
-            const filteredResults = results.filter((r) => {
+            const filteredResults = rankedResults.filter((r) => {
               const lastTurn = sessionHistory.get(r.entry.id) ?? -999;
               const diff = currentTurn - lastTurn;
               const isRedundant = diff < minRepeated;
@@ -2282,13 +2297,30 @@ const memoryLanceDBProPlugin = {
             return;
           }
 
+          // Determine effective per-item char limit based on recall mode and intent depth
+          const effectivePerItemMaxChars = (() => {
+            if (recallMode === "summary") return Math.min(autoRecallPerItemMaxChars, 80); // L0 only
+            if (!intent) return autoRecallPerItemMaxChars; // "full" mode
+            // Adaptive mode: depth determines char budget
+            switch (intent.depth) {
+              case "l0": return Math.min(autoRecallPerItemMaxChars, 80);
+              case "l1": return autoRecallPerItemMaxChars; // default budget
+              case "full": return Math.min(autoRecallPerItemMaxChars * 3, 1000);
+            }
+          })();
+
           const preBudgetCandidates = governanceEligible.map((r) => {
             const metaObj = parseSmartMetadata(r.entry.metadata, r.entry);
             const displayCategory = metaObj.memory_category || r.entry.category;
             const displayTier = metaObj.tier || "";
             const tierPrefix = displayTier ? `[${displayTier.charAt(0).toUpperCase()}]` : "";
-            const abstract = metaObj.l0_abstract || r.entry.text;
-            const summary = sanitizeForContext(abstract).slice(0, autoRecallPerItemMaxChars);
+            // Select content tier based on recallMode/intent depth
+            const contentText = recallMode === "summary"
+              ? (metaObj.l0_abstract || r.entry.text)
+              : intent?.depth === "full"
+                ? (r.entry.text) // full text for deep queries
+                : (metaObj.l0_abstract || r.entry.text); // L0/L1 default
+            const summary = sanitizeForContext(contentText).slice(0, effectivePerItemMaxChars);
             return {
               id: r.entry.id,
               prefix: `${tierPrefix}[${displayCategory}:${r.entry.scope}]`,
