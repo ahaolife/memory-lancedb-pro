@@ -2019,6 +2019,39 @@ const memoryLanceDBProPlugin = {
       `  - Use memory_store or auto-capture for recallable memories.\n`
     );
 
+    // Health status for memory runtime stub (reflects actual plugin health)
+    // Updated by runStartupChecks after testing embedder and retriever
+    let embedHealth: { ok: boolean; error?: string } = { ok: false, error: "startup not complete" };
+    let retrievalHealth: boolean = false;
+
+    // ========================================================================
+    // Stub Memory Runtime (satisfies openclaw doctor memory plugin check)
+    // memory-lancedb-pro uses a tool-based architecture, not the built-in memory-core
+    // runtime interface, so we register a minimal stub to satisfy the check.
+    // See: https://github.com/CortexReach/memory-lancedb-pro/issues/434
+    // ========================================================================
+    if (typeof api.registerMemoryRuntime === "function") {
+      api.registerMemoryRuntime({
+        async getMemorySearchManager(_params: any) {
+          return {
+            manager: {
+              status: () => ({
+                backend: "builtin" as const,
+                provider: "memory-lancedb-pro",
+                embeddingAvailable: embedHealth.ok,
+                retrievalAvailable: retrievalHealth,
+              }),
+              probeEmbeddingAvailability: async () => ({ ...embedHealth }),
+              probeVectorAvailability: async () => retrievalHealth,
+            },
+          };
+        },
+        resolveMemoryBackendConfig() {
+          return { backend: "builtin" as const };
+        },
+      });
+    }
+
     api.on("message_received", (event: any, ctx: any) => {
       const conversationKey = buildAutoCaptureConversationKeyFromIngress(
         ctx.channelId,
@@ -3768,6 +3801,10 @@ const memoryLanceDBProPlugin = {
                 `memory-lancedb-pro: retrieval test failed: ${retrievalTest.error}`,
               );
             }
+
+            // Update stub health status so openclaw doctor reflects real state
+            embedHealth = { ok: !!embedTest.success, error: embedTest.error };
+            retrievalHealth = !!retrievalTest.success;
           } catch (error) {
             api.logger.warn(
               `memory-lancedb-pro: startup checks failed: ${String(error)}`,
